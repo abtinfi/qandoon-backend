@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from routes.auth import router as auth_router
+from database.config import engine, Base
+
+Base.metadata.create_all(bind=engine) #creat db for ferst time in dev
 
 app = FastAPI()
 
