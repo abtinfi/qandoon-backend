@@ -3,14 +3,37 @@ services:
     image: postgres:15
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-backend_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-very_very_strong_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-backend_db}
+      #POSTGRES_INITDB_ARGS: "--username=${POSTGRES_USER:-backend_user}"
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-    container_name: database
+    container_name: sdatabase
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backend_user} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://${POSTGRES_USER:-backend_user}:${POSTGRES_PASSWORD:-very_very_strong_pass}@db:5432/${POSTGRES_DB:-backend_db}
+      DB_HOST: db 
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: >
+      sh -c "uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
+    container_name: qandoon_backend
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:
