@@ -3,8 +3,8 @@ from typing import Optional
 
 class UserCreate(BaseModel):
     email: EmailStr
+    name: str
     password: str
-    is_admin: Optional[bool] = False
 
 class UserRead(BaseModel):
     id: int
@@ -30,3 +30,12 @@ class UserOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    name: str
+    is_verified: bool
+
+    class Config:
+        from_attributes = True

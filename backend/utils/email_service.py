@@ -7,7 +7,6 @@ class EmailService:
         resend.api_key = os.getenv("EMAIL_KEY")
 
     async def send_otp_email(self, email: str, otp: str) -> bool:
-        print(email, otp)
         try:
             params: resend.Emails.SendParams = {
                 "from": "admin <noreply@abtinfi.ir>",
