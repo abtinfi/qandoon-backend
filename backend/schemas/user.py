@@ -1,18 +1,17 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional
 
 class UserCreate(BaseModel):
     email: EmailStr
+    name: str
     password: str
-    is_admin: Optional[bool] = False
 
 class UserRead(BaseModel):
     id: int
     email: EmailStr
     is_admin: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -28,5 +27,12 @@ class UserOut(BaseModel):
     email: EmailStr
     is_admin: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    name: str
+    is_verified: bool
+
+    model_config = ConfigDict(from_attributes=True)

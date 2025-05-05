@@ -2,20 +2,27 @@ from sqlalchemy.orm import Session
 from backend.models.user import User
 from backend.schemas.user import UserCreate
 from backend.utils.hashpass import hash_password, verify_password
+from fastapi import HTTPException, status
 
 def create_user(db: Session, user_data: UserCreate):
     db_user = db.query(User).filter(User.email == user_data.email).first()
     if db_user:
-        raise ValueError("User with this email already exists.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
     
     hashed_pw = hash_password(user_data.password)
     new_user = User(
         email=user_data.email,
-        hashed_password=hashed_pw
+        name=user_data.name,
+        password=hashed_pw,
+        is_verified=False
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    print(f"Created user with ID: {new_user.id}")
     return new_user
 
 def login_user(db: Session, email: str, password: str):
