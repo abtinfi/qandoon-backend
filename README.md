@@ -110,3 +110,4 @@ To deploy the application, you can use services like Docker, AWS, Azure, Google 
 ## Contributing
 
 Contributions are welcome! Please fork the repository and create a pull request with your changes.
+
