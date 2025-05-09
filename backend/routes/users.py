@@ -178,57 +178,49 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(access_token=access_token)
 
 @router.post("/reset-password", response_model=OTPResponse)
-async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
-    # Verify OTP first
-    otp = db.query(OTP).filter(OTP.email == request.email).first()
-    
-    if not otp:
+async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
+    redis_key = f"otp:{request.email}"
+    otp_data = redis_client.hgetall(redis_key)
+    if not otp_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="OTP not found"
+            detail="OTP not found or expired"
         )
-    
-    if otp.is_expired():
+    if otp_data["is_verified"] == "1":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OTP has expired"
+            detail="OTP already verified"
         )
-    
-    if otp.attempts >= 3:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Too many attempts. Please request a new OTP"
-        )
-    
-    if otp.code != request.code:
-        otp.increment_attempts()
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OTP"
-        )
-    
-    # Find user and update password
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    # Hash the new password
-    hashed_password = hash_password(request.new_password)
-    user.password = hashed_password
-    
-    # Mark OTP as verified
-    otp.is_verified = True
-    
-    db.commit()
-    
-    return OTPResponse(
-        message="Password reset successfully",
-        expires_in=0
+    if otp_data["code"] != request.code:
+        redis_client.hincrby(redis_key, "attempts", 1)
+        attempts = int(redis_client.hget(redis_key, "attempts"))
+        if attempts >= 3:
+            ttl = redis_client.ttl(redis_key)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Too many attempts. Please request a new OTP after {ttl} seconds"
+            )
+    if otp_data["code"] == request.code:
+        redis_client.hset(redis_key, "is_verified", "1")
+        # Update user password
+        user = db.query(User).filter(User.email == request.email).first()
+        if user:
+            hashed_password = hash_password(request.new_password)
+            user.password = hashed_password
+            db.commit()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+    # Create JWT token
+    role = "admin" if user.is_admin else "user"
+    access_token = create_access_token(data={"sub": request.email, "role": role})
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
     )
+    
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
