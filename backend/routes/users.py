@@ -57,15 +57,16 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db), redis_c
 async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     # Check if user exists
     user = db.query(User).filter(User.email == otp_request.email).first() # TODO: consider moving user lookup to a reusable utility
-    
     # Validate purpose
-    if otp_request.purpose == OTPPurpose.REGISTRATION.value: # For registration, user should not exist or be verified
+    if otp_request.purpose == OTPPurpose.REGISTRATION: # For registration, user should not exist or be verified
         if user and user.is_verified: # For registration, user should not exist or not be verified
+            print("DEBUG request_otp: User is registered AND verified. Raising HTTPException.") # اضافه کردن لاگ
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered and verified"
             )
-    elif otp_request.purpose == OTPPurpose.PASSWORD_RESET.value: # For password reset, user must exist and be verified
+        
+    elif otp_request.purpose == OTPPurpose.PASSWORD_RESET: # For password reset, user must exist and be verified
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
