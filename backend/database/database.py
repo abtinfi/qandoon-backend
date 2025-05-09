@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from backend.models.user import User
 from backend.schemas.user import UserCreate
-from backend.utils.hashpass import hash_password, verify_password
+from backend.core.security import hash_password, verify_password
 from fastapi import HTTPException, status
 
 def create_user(db: Session, user_data: UserCreate):
