@@ -78,7 +78,7 @@ async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), re
             )
     
     # Check if there's an existing OTP
-    redis_key ="otp:{user.email}"
+    redis_key =f"otp:{user.email}"
     existing_otp_data = redis_client.hgetall(redis_key)
 
     if existing_otp_data:
