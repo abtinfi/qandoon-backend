@@ -54,7 +54,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db), redis_c
     redis_client.hset(redis_key, mapping=otp_data)
     redis_client.expire(redis_key, expires_in_seconds)
     
-    await email_service.send_otp_email(user_data.email, otp_code)
+    await email_service.send_otp_email(user_data.email, otp_code, 3)
     return new_user
 
 @router.post("/request-otp", response_model=OTPResponse)
@@ -109,7 +109,7 @@ async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), re
     redis_client.hset(redis_key, mapping=otp_data)
     redis_client.expire(redis_key, expires_in_seconds)
 
-    await email_service.send_otp_email(otp_request.email, otp_code)
+    await email_service.send_otp_email(otp_request.email, otp_code, 3)
     return OTPResponse(
         message="OTP sent successfully",
         expires_in=expires_in_seconds
