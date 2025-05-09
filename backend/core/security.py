@@ -48,4 +48,4 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 def generate_otp(length: int = 5) -> str:
-    return ''.join(secrets.choice('0123456789'))
+    return ''.join(secrets.choice('0123456789') for _ in range(length))
