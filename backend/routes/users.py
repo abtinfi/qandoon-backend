@@ -98,7 +98,7 @@ async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), re
     
     otp_data = {
         "code": otp_code,
-        "is_vetified": "0",
+        "is_verified": "0",
         "attempts": "0",
         "purpose": otp_request.purpose.value,
         "created_at": current_time.isoformat(),
