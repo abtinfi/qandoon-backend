@@ -1,101 +1,72 @@
-# from fastapi import APIRouter, Depends, HTTPException, status
-# from fastapi.security import OAuth2PasswordBearer
-# from sqlalchemy.orm import Session
-# from backend.database.config import get_db
-# from backend.schemas.user import UserCreate, UserLogin, UserUpdate, UserOut
-# from backend.database.database import create_user, login_user, update_user
-# from backend.models.user import User
-# from backend.utils.jwt import verify_access_token
-
-
-# router = APIRouter()
-# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-# def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-#     payload = verify_access_token(token)
-#     user = db.query(User).filter(User.id == payload["user_id"]).first()
-#     if user is None:
-#         raise HTTPException(status_code=401, detail="Invalid token")
-#     return user
-
-# @router.post("/register", response_model=UserOut)
-# async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-#     try:
-#         user = create_user(db, user_data)
-#         return user
-#     except ValueError as e:
-#         raise HTTPException(status_code=400, detail=str(e))
-        
-
-# @router.post("/login")
-# async def login(user: UserLogin, db: Session = Depends(get_db)):
-#     try:
-#         return login_user(db, user.email, user.password)
-#     except ValueError as e:
-#         raise HTTPException(status_code=401, detail=str(e))
-
-# @router.get("/me", response_model=UserOut)
-# async def get_me(current_user: UserOut = Depends(get_current_user)):
-#     return current_user
-
-# @router.put("/me", response_model=UserOut)
-# async def edit_user(update: UserUpdate, db: Session = Depends(get_db), current_user: UserOut = Depends(get_current_user)):
-#     user = update_user(db, current_user.id, update.model_dump(exclude_unset=True))
-#     return user
-
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
-from datetime import datetime, timedelta
-import random
-import string
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from datetime import datetime
 from passlib.context import CryptContext
 
 from backend.database.config import get_db
 from backend.models.user import User
-from backend.models.otp import OTP, OTPPurpose
 from backend.schemas.otp import *
 from backend.schemas.user import *
 from backend.utils.email_service import email_service
 from backend.core.security import create_access_token, get_current_user
 from backend.database.database import create_user
-from backend.database.otp import create_otp
-from backend.utils.hashpass import hash_password, verify_password
+from backend.core.security import hash_password, verify_password
+from redis.client import Redis
+from backend.database.redis_config import get_redis
+from backend.core.security import generate_otp
+import enum
 
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-limiter = Limiter(key_func=get_remote_address)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
-def generate_otp() -> str:
-    return ''.join(random.choices(string.digits, k=5))
-
 @router.post("/register", response_model=UserResponse)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(user_data: UserCreate, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     new_user = create_user(db, user_data)
-    otp = create_otp(new_user=new_user, db=db, purpose=OTPPurpose.REGISTRATION)
-    await email_service.send_otp_email(user_data.email, otp.code)
+
+    redis_key = f"otp:{new_user.email}"
+    existing_otp_data = redis_client.hgetall(redis_key)
+    if existing_otp_data: # Check if an OTP already exists for this email
+        ttl = redis_client.ttl(redis_key)
+        if ttl > 0:
+            # If OTP exists and has not expired, prevent new OTP generation
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"OTP already exists. Please wait for {ttl} seconds before requesting a new one."
+            )
+    # Generate and store new OTP in Redis
+    otp_code = generate_otp()
+    expires_in_seconds = 180
+    current_time = datetime.now()
+    otp_data = {
+        "code": otp_code,
+        "is_verified": "0",
+        "attempts": "0",
+        "purpose": OTPPurpose.REGISTRATION.value,
+        "created_at": current_time.isoformat(),
+    }
+    redis_client.hset(redis_key, mapping=otp_data)
+    redis_client.expire(redis_key, expires_in_seconds)
+    
+    await email_service.send_otp_email(user_data.email, otp_code, 3)
     return new_user
 
 @router.post("/request-otp", response_model=OTPResponse)
-@limiter.limit("3/minute")
-async def request_otp(request: Request, otp_request: OTPRequest, db: Session = Depends(get_db)):
+async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     # Check if user exists
-    user = db.query(User).filter(User.email == otp_request.email).first() #TODO: add user finder query
-    
+    user = db.query(User).filter(User.email == otp_request.email).first() # TODO: consider moving user lookup to a reusable utility
     # Validate purpose
-    if otp_request.purpose == OTPPurpose.REGISTRATION:
-        if user and user.is_verified:
+    if otp_request.purpose == OTPPurpose.REGISTRATION: # For registration, user should not exist or be verified
+        if user and user.is_verified: # For registration, user should not exist or not be verified
+            print("DEBUG request_otp: User is registered AND verified. Raising HTTPException.") # اضافه کردن لاگ
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered and verified"
             )
-    elif otp_request.purpose == OTPPurpose.PASSWORD_RESET:
+        
+    elif otp_request.purpose == OTPPurpose.PASSWORD_RESET: # For password reset, user must exist and be verified
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -107,78 +78,93 @@ async def request_otp(request: Request, otp_request: OTPRequest, db: Session = D
                 detail="Email not verified. Please verify your email first."
             )
     
-    # Check if there's an existing OTP
-    existing_otp = db.query(OTP).filter(OTP.email == otp_request.email).first()
-    
-    if existing_otp and not existing_otp.is_expired():
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Please wait before requesting a new OTP"
-        )
+    # Check if an active OTP already exists
+    redis_key =f"otp:{user.email}"
+    existing_otp_data = redis_client.hgetall(redis_key)
 
-    # Generate new OTP
+    if existing_otp_data:
+        ttl = redis_client.ttl(redis_key)
+        if ttl > 0: # If OTP exists and has not expired, prevent new OTP generation
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"OTP already exists. Please wait for {ttl} seconds before requesting a new one."
+            )
+    
+    # Generate and store new OTP in Redis
     otp_code = generate_otp()
-    expires_at = datetime.now() + timedelta(minutes=5)
+    expires_in_seconds = 180  # 3 minutes
+    current_time = datetime.now()
     
-    if existing_otp:
-        existing_otp.code = otp_code
-        existing_otp.expires_at = expires_at
-        existing_otp.is_verified = False
-        existing_otp.attempts = 0
-        existing_otp.purpose = otp_request.purpose
-    else:
-        new_otp = OTP(
-            id=str(random.randint(1000, 9999)),
-            email=otp_request.email,
-            code=otp_code,
-            expires_at=expires_at,
-            purpose=otp_request.purpose
-        )
-        db.add(new_otp)
+    otp_data = {
+        "code": otp_code,
+        "is_verified": "0",
+        "attempts": "0",
+        "purpose": otp_request.purpose.value,
+        "created_at": current_time.isoformat(),
+    }
     
-    db.commit()
-    
-    # Send email
-    await email_service.send_otp_email(otp_request.email, otp_code)
-    
+    redis_client.hset(redis_key, mapping=otp_data)
+    redis_client.expire(redis_key, expires_in_seconds)
+
+    await email_service.send_otp_email(otp_request.email, otp_code, 3)
     return OTPResponse(
         message="OTP sent successfully",
-        expires_in=300  # 5 minutes in seconds
+        expires_in=expires_in_seconds
     )
 
 @router.post("/verify-email", response_model=TokenResponse)
-async def verify_email(verify_data: OTPVerifyRequest, db: Session = Depends(get_db)):
-    email = verify_data.email
-    code = verify_data.code
-    # Verify OTP
-    otp = db.query(OTP).filter(OTP.email == email).first()
-    if not otp or otp.code != code or otp.is_expired():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OTP"
-        )
-
-    # Update user verification status
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
+async def verify_email(verify_data: OTPVerifyRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
+    redis_key = f"otp:{verify_data.email}"
+    otp_data = redis_client.hgetall(redis_key)
+    otp_data = {k.decode(): v.decode() for k, v in otp_data.items()} # Decode OTP data from Redis
+    if not otp_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="OTP not found or expired"
         )
+    if otp_data.get("is_verified") == "1": # Check if OTP has already been used
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP already verified"
+        )
+    if otp_data.get("code") != verify_data.code:
+        redis_client.hincrby(redis_key, "attempts", 1)
+        attempts = int(redis_client.hget(redis_key, "attempts") or 0)
+        if attempts >= 3: # Limit OTP verification attempts
+            ttl = redis_client.ttl(redis_key)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Too many attempts. Please request a new OTP after {ttl} seconds"
+            )
+    # If OTP code is correct
+    if otp_data.get("code") == verify_data.code:
+        redis_client.hset(redis_key, "is_verified", "1")
+        # Update user verification status
+        user = db.query(User).filter(User.email == verify_data.email).first()
+        if user:
+            user.is_verified = True
+            db.commit()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+    # Create JWT token
+    access_token = create_access_token(data={"sub": verify_data.email, "role": "user"})
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+    )
+    
 
-    user.is_verified = True
-    db.commit()
-
-    # Generate JWT token
-    access_token = create_access_token(data={"sub": user.email})
-    return TokenResponse(access_token=access_token)
+    
 
 @router.post("/login", response_model=TokenResponse)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     # Find user
     user = db.query(User).filter(User.email == request.email).first()
     if user:
-    # Check password (in production, use proper password hashing)
+    # Verify password
         if not verify_password(request.password, user.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -190,63 +176,53 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             detail="User not found"
         )
 
-    
+    role = "admin" if user.is_admin else "user"
     # Create JWT token
-    access_token = create_access_token(data={"sub": user.email})
-    return TokenResponse(access_token=access_token)
+    access_token = create_access_token(data={"sub": user.email, "role": role})
+    return TokenResponse(access_token=access_token, token_type="bearer")
 
 @router.post("/reset-password", response_model=OTPResponse)
-async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
-    # Verify OTP first
-    otp = db.query(OTP).filter(OTP.email == request.email).first()
-    
-    if not otp:
+async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
+    redis_key = f"otp:{request.email}"
+    otp_data = redis_client.hgetall(redis_key)
+    otp_data = {k.decode(): v.decode() for k, v in otp_data.items()} # Decode OTP data from Redis
+    if not otp_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="OTP not found"
+            detail="OTP not found or expired"
         )
-    
-    if otp.is_expired():
+    if otp_data.get("is_verified") == "1": # Ensure OTP is for password reset and not already used for it
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OTP has expired"
+            detail="OTP already verified"
         )
-    
-    if otp.attempts >= 3:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Too many attempts. Please request a new OTP"
-        )
-    
-    if otp.code != request.code:
-        otp.increment_attempts()
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OTP"
-        )
-    
-    # Find user and update password
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    # Hash the new password
-    hashed_password = hash_password(request.new_password)
-    user.password = hashed_password
-    
-    # Mark OTP as verified
-    otp.is_verified = True
-    
-    db.commit()
-    
+    if otp_data.get("code") != request.code:
+        redis_client.hincrby(redis_key, "attempts", 1)
+        attempts = int(redis_client.hget(redis_key, "attempts") or 0)
+        if attempts >= 3: # Limit OTP verification attempts
+            ttl = redis_client.ttl(redis_key)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Too many attempts. Please request a new OTP after {ttl} seconds"
+            )
+    if otp_data.get("code") == request.code:
+        redis_client.hset(redis_key, "is_verified", "1") # Mark OTP as verified for password reset
+        # Update user password
+        user = db.query(User).filter(User.email == request.email).first()
+        if user:
+            hashed_password = hash_password(request.new_password)
+            user.password = hashed_password
+            db.commit()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
     return OTPResponse(
         message="Password reset successfully",
         expires_in=0
     )
+    
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):

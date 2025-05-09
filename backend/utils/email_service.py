@@ -6,7 +6,7 @@ class EmailService:
     def __init__(self):
         resend.api_key = os.getenv("EMAIL_KEY")
 
-    async def send_otp_email(self, email: str, otp: str) -> bool:
+    async def send_otp_email(self, email: str, otp: str, expire: str) -> bool:
         try:
             params: resend.Emails.SendParams = {
                 "from": "admin <noreply@abtinfi.ir>",
@@ -15,7 +15,7 @@ class EmailService:
                 "html": f"""
                 <h1>Your OTP Code</h1>
                 <p>Your one-time password is: <strong>{otp}</strong></p>
-                <p>This code will expire in 5 minutes.</p>
+                <p>This code will expire in <strong>{expire}</strong> minutes.</p>
                 """
             }
             response = resend.Emails.send(params)

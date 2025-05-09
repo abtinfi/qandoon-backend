@@ -1,7 +1,8 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
-from datetime import datetime
-from backend.models.otp import OTPPurpose
+import enum
+class OTPPurpose(enum.Enum):
+    REGISTRATION = "registration"
+    PASSWORD_RESET = "password_reset"
 
 class OTPRequest(BaseModel):
     email: EmailStr
@@ -13,7 +14,7 @@ class OTPResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str = "bearer"
+    token_type: str
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
