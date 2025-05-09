@@ -179,9 +179,9 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     role = "admin" if user.is_admin else "user"
     # Create JWT token
     access_token = create_access_token(data={"sub": user.email, "role": role})
-    return TokenResponse(access_token=access_token)
+    return TokenResponse(access_token=access_token, token_type="bearer")
 
-@router.post("/reset-password", response_model=TokenResponse)
+@router.post("/reset-password", response_model=OTPResponse)
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     redis_key = f"otp:{request.email}"
     otp_data = redis_client.hgetall(redis_key)
@@ -219,12 +219,9 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-    # Create JWT token
-    role = "admin" if user.is_admin else "user"
-    access_token = create_access_token(data={"sub": request.email, "role": role})
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
+    return OTPResponse(
+        message="Password reset successfully",
+        expires_in=0
     )
     
 
