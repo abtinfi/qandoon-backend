@@ -6,7 +6,6 @@ from passlib.context import CryptContext
 
 from backend.database.config import get_db
 from backend.models.user import User
-from backend.models.otp import OTP, OTPPurpose
 from backend.schemas.otp import *
 from backend.schemas.user import *
 from backend.utils.email_service import email_service
@@ -16,11 +15,16 @@ from backend.core.security import hash_password, verify_password
 from redis.client import Redis
 from backend.database.redis_config import get_redis
 from backend.core.security import generate_otp
+import enum
+
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+class OTPPurpose(enum.Enum):
+    REGISTRATION = "registration"
+    PASSWORD_RESET = "password_reset"
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
@@ -181,6 +185,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     redis_key = f"otp:{request.email}"
     otp_data = redis_client.hgetall(redis_key)
+    print(otp_data)
     if not otp_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
