@@ -185,6 +185,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     redis_key = f"otp:{request.email}"
     otp_data = redis_client.hgetall(redis_key)
+    otp_data = {k.decode(): v.decode() for k, v in otp_data.items()}
     print(otp_data)
     if not otp_data:
         raise HTTPException(
