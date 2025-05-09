@@ -1,6 +1,9 @@
 from pydantic import BaseModel, EmailStr
-from backend.models.otp import OTPPurpose
-
+import enum
+class OTPPurpose(enum.Enum):
+    REGISTRATION = "registration"
+    PASSWORD_RESET = "password_reset"
+    
 class OTPRequest(BaseModel):
     email: EmailStr
     purpose: OTPPurpose
