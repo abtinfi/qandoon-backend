@@ -10,7 +10,7 @@ import secrets
 # Configuration
 SECRET_KEY = os.getenv("JWT_SECRET")
 ALGORITHM = os.getenv("JWT_ALGORITHM")
-ACCESS_TOKEN_EXPIRE_DAYS = os.getenv("JWT_EXPIRE_DAY")
+ACCESS_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAY"))
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
