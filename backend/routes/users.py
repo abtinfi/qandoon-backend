@@ -181,7 +181,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": user.email, "role": role})
     return TokenResponse(access_token=access_token)
 
-@router.post("/reset-password", response_model=OTPResponse)
+@router.post("/reset-password", response_model=TokenResponse)
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     redis_key = f"otp:{request.email}"
     otp_data = redis_client.hgetall(redis_key)
