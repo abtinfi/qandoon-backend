@@ -60,7 +60,6 @@ async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), re
     # Validate purpose
     if otp_request.purpose == OTPPurpose.REGISTRATION: # For registration, user should not exist or be verified
         if user and user.is_verified: # For registration, user should not exist or not be verified
-            print("DEBUG request_otp: User is registered AND verified. Raising HTTPException.") # اضافه کردن لاگ
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered and verified"
@@ -225,11 +224,29 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_current_user_info(current_user: tuple = Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == current_user).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+    return user
+
+
+@router.put("/username", response_model=UserResponse)
+async def update_name(request: UserUpdateUsername, current_user: tuple = Depends(get_current_user), db: Session = Depends(get_db)):
+    email, role = current_user
+    
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+        
+    user.name = request.name
+    db.commit()
+    db.refresh(user)
+    
     return user

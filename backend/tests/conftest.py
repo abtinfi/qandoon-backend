@@ -7,7 +7,7 @@ from backend.database.config import Base
 from backend.main import app
 from backend.database.config import get_db
 from backend.models.user import User
-from backend.utils.hashpass import hash_password
+from backend.core.security import hash_password, create_access_token
 from backend.core.security import create_access_token
 
 # Create test database
