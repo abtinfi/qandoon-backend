@@ -20,12 +20,12 @@ jobs:
       # Step 1: Checkout the code from your repository onto the runner
       - name: Checkout code
         # Use the standard action to fetch the repository content
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       # Step 2: Deploy the application to your server via SSH using docker-compose
       - name: Deploy to Server
         # Use the appleboy/ssh-action for connecting and executing commands via SSH
-        uses: appleboy/ssh-action@v1.0.0
+        uses: appleboy/ssh-action@v0.1.8
         with:
           # Server details, fetched securely from GitHub Secrets
           host: ${{ secrets.SSH_HOST }}
@@ -50,4 +50,4 @@ jobs:
 
             # Build the backend service image using docker-compose
             # This uses the Dockerfile in the pulled code
-            docker compose up --build
+            docker compose up --build -d
