@@ -1,0 +1,53 @@
+# This is the name of your workflow, shown in the GitHub Actions tab
+name: Deploy Backend with Docker Compose
+
+# This specifies when the workflow should run
+on:
+  push:
+    # Trigger the workflow on pushes to the 'main' branch.
+    # Change 'main' to the branch you use for production deployments (e.g., 'master', 'production').
+    branches:
+      - main
+
+# Define the jobs that will run as part of this workflow
+jobs:
+  deploy:
+    # This job will run on a GitHub-hosted runner using the latest Ubuntu Linux
+    runs-on: ubuntu-latest
+
+    # Define the steps within the 'deploy' job
+    steps:
+      # Step 1: Checkout the code from your repository onto the runner
+      - name: Checkout code
+        # Use the standard action to fetch the repository content
+        uses: actions/checkout@v4
+
+      # Step 2: Deploy the application to your server via SSH using docker-compose
+      - name: Deploy to Server
+        # Use the appleboy/ssh-action for connecting and executing commands via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          # Server details, fetched securely from GitHub Secrets
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Specify the SSH port if it's not the default 22
+          # port: 22
+
+          # The multi-line script to execute on the remote server
+          script: |
+            # Navigate to the directory where your project files (including docker-compose.yml and Dockerfile) are located on the server
+            # *** IMPORTANT: REPLACE THIS PATH WITH YOUR ACTUAL PROJECT DIRECTORY ON THE SERVER ***
+            cd /qandoon-backend
+
+            # Pull the latest code from the specified branch (e.g., main)
+            # This updates your docker-compose.yml and source files on the server
+            # Update 'main' and 'origin' if your remote or branch names are different
+            git pull origin main
+
+            # --- Docker Compose Deployment Steps ---
+            # These steps assume your docker-compose.yml is in the project directory on the server
+
+            # Build the backend service image using docker-compose
+            # This uses the Dockerfile in the pulled code
+            docker compose up --build
