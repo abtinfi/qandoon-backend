@@ -31,13 +31,10 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Specify the SSH port if it's not the default 22
-          # port: 22
 
           # The multi-line script to execute on the remote server
           script: |
             # Navigate to the directory where your project files (including docker-compose.yml and Dockerfile) are located on the server
-            # *** IMPORTANT: REPLACE THIS PATH WITH YOUR ACTUAL PROJECT DIRECTORY ON THE SERVER ***
             cd /root/qandoon-backend
 
             # Pull the latest code from the specified branch (e.g., main)
@@ -45,9 +42,4 @@ jobs:
             # Update 'main' and 'origin' if your remote or branch names are different
             git pull origin main
 
-            # --- Docker Compose Deployment Steps ---
-            # These steps assume your docker-compose.yml is in the project directory on the server
-
-            # Build the backend service image using docker-compose
-            # This uses the Dockerfile in the pulled code
             docker compose up --build -d
