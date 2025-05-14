@@ -38,7 +38,7 @@ jobs:
           script: |
             # Navigate to the directory where your project files (including docker-compose.yml and Dockerfile) are located on the server
             # *** IMPORTANT: REPLACE THIS PATH WITH YOUR ACTUAL PROJECT DIRECTORY ON THE SERVER ***
-            cd /qandoon-backend
+            cd /root/qandoon-backend
 
             # Pull the latest code from the specified branch (e.g., main)
             # This updates your docker-compose.yml and source files on the server
