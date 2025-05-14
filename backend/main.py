@@ -57,4 +57,4 @@ app.include_router(pastries.router, prefix="/pastries", tags=["pastries"])
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the API for the Pastry Shop!"}
+    return {"message": "Welcome to the API for the Pastry Shop!!"}
