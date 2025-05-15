@@ -1,6 +1,8 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Enum, JSON, DateTime
 from sqlalchemy.orm import relationship
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 import enum
 
 from backend.database.config import Base
