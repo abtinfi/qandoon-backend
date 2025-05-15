@@ -8,7 +8,7 @@ from slowapi.middleware import SlowAPIMiddleware
 import redis.asyncio as redis
 import os
 from dotenv import load_dotenv
-from backend.routes import users, pastries
+from backend.routes import users, pastries, order
 from backend.database.config import engine, Base
 from contextlib import asynccontextmanager
 from sqlalchemy import inspect
@@ -54,6 +54,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(pastries.router, prefix="/pastries", tags=["pastries"])
+app.include_router(order.router, prefix="/api", tags=["orders"])
 
 @app.get("/")
 async def root():

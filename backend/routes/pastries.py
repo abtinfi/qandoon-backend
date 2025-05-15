@@ -58,11 +58,11 @@ async def create_pastry(
     current_user: tuple = Depends(get_current_user)
 ):
     email, role = current_user
-    # if role != "admin":
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Only admins can create pastries"
-    #     )
+    if role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can create pastries"
+        )
     
     # Save uploaded image
     image_url = await save_upload_file(image)
@@ -116,11 +116,11 @@ async def update_pastry(
     current_user: tuple = Depends(get_current_user)
 ):
     email, role = current_user
-    # if role != "admin":
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Only admins can update pastries"
-    #     )
+    if role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update pastries"
+        )
     
     db_pastry = db.query(Pastry).filter(Pastry.id == pastry_id).first()
     if not db_pastry:
@@ -160,11 +160,11 @@ async def delete_pastry(
     current_user: tuple = Depends(get_current_user)
 ):
     email, role = current_user
-    # if role != "admin":
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Only admins can delete pastries"
-    #     )
+    if role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can delete pastries"
+        )
     
     db_pastry = db.query(Pastry).filter(Pastry.id == pastry_id).first()
     if not db_pastry:
@@ -179,4 +179,4 @@ async def delete_pastry(
     
     db.delete(db_pastry)
     db.commit()
-    return None 
+    return status.HTTP_200_OK
