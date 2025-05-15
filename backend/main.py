@@ -58,4 +58,4 @@ app.include_router(order.router, prefix="/api", tags=["orders"])
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the API for the Pastry Shop!"}
+    return {"message": "Welcome to the API for the Pastry shop!"}
