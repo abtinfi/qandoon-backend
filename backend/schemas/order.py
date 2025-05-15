@@ -1,7 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import List, Dict, Optional
 from datetime import datetime
-from models.order import OrderStatus
+from backend.models.order import OrderStatus
 
 class OrderItem(BaseModel):
     pastry_id: int
