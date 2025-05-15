@@ -15,7 +15,6 @@ from backend.core.security import hash_password, verify_password
 from redis.client import Redis
 from backend.database.redis_config import get_redis
 from backend.core.security import generate_otp
-import enum
 
 
 router = APIRouter()
@@ -149,7 +148,7 @@ async def verify_email(verify_data: OTPVerifyRequest, db: Session = Depends(get_
                 detail="User not found"
             )
     # Create JWT token
-    access_token = create_access_token(data={"sub": verify_data.email, "role": "user"})
+    access_token = create_access_token(data={"sub": verify_data.email, "role": "user", "user_id": user.id})
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
@@ -177,7 +176,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 
     role = "admin" if user.is_admin else "user"
     # Create JWT token
-    access_token = create_access_token(data={"sub": user.email, "role": role})
+    access_token = create_access_token(data={"sub": user.email, "role": role, "user_id": user.id})
     return TokenResponse(access_token=access_token, token_type="bearer")
 
 @router.post("/reset-password", response_model=OTPResponse)
@@ -224,8 +223,8 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: tuple = Depends(get_current_user), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == current_user).first()
+async def get_current_user_info(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == current_user.get("email")).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -235,10 +234,9 @@ async def get_current_user_info(current_user: tuple = Depends(get_current_user),
 
 
 @router.put("/username", response_model=UserResponse)
-async def update_name(request: UserUpdateUsername, current_user: tuple = Depends(get_current_user), db: Session = Depends(get_db)):
-    email, role = current_user
-    
-    user = db.query(User).filter(User.email == email).first()
+async def update_name(request: UserUpdateUsername, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.email == current_user.get("email")).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

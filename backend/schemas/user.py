@@ -10,6 +10,7 @@ class UserResponse(BaseModel):
     email: str
     name: str
     is_verified: bool
+    is_admin: bool
 
     model_config = ConfigDict(from_attributes=True)
 

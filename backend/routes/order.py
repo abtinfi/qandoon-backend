@@ -10,11 +10,11 @@ from backend.models.pastry import Pastry
 
 router = APIRouter()
 
-@router.post("/orders/", response_model=OrderResponse)
+@router.post("/new", response_model=OrderResponse)
 async def create_order(
     order: OrderCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     # Check if all pastries exist and have sufficient quantity
     for item in order.items:
@@ -24,7 +24,7 @@ async def create_order(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Pastry with id {item.pastry_id} not found"
             )
-        if pastry.quantity < item.quantity:
+        if pastry.stock < item.quantity:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Insufficient quantity for pastry {pastry.name}"
@@ -32,7 +32,7 @@ async def create_order(
 
     # Create new order
     db_order = Order(
-        user_id=current_user.id,
+        user_id=current_user.get("user_id"),
         address=order.address,
         phone_number=order.phone_number,
         items=[{"pastry_id": item.pastry_id, "quantity": item.quantity} for item in order.items]
@@ -42,20 +42,20 @@ async def create_order(
     db.refresh(db_order)
     return db_order
 
-@router.get("/orders/", response_model=List[OrderResponse])
+@router.get("/orders", response_model=List[OrderResponse])
 async def get_orders(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    if current_user.is_admin:
+    if current_user.get("role") == "admin":
         return db.query(Order).all()
-    return db.query(Order).filter(Order.user_id == current_user.id).all()
+    return db.query(Order).filter(Order.user_id == int(current_user.get("user_id"))).all()
 
 @router.get("/orders/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
@@ -63,7 +63,7 @@ async def get_order(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Order not found"
         )
-    if not current_user.is_admin and order.user_id != current_user.id:
+    if not (current_user.get("role") == "admin") and order.user_id != int(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this order"
@@ -75,9 +75,9 @@ async def update_order(
     order_id: int,
     order_update: OrderUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    if not current_user.is_admin:
+    if not current_user.get("role") == "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can update orders"
@@ -94,12 +94,12 @@ async def update_order(
     if order_update.status == OrderStatus.ACCEPTED and order.status == OrderStatus.PENDING:
         for item in order.items:
             pastry = db.query(Pastry).filter(Pastry.id == item["pastry_id"]).first()
-            if pastry.quantity < item["quantity"]:
+            if pastry.stock < item["quantity"]:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Insufficient quantity for pastry {pastry.name}"
                 )
-            pastry.quantity -= item["quantity"]
+            pastry.stock -= item["quantity"]
 
     order.status = order_update.status
     order.admin_message = order_update.admin_message
