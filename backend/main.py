@@ -54,7 +54,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(pastries.router, prefix="/pastries", tags=["pastries"])
-app.include_router(order.router, prefix="/api", tags=["orders"])
+app.include_router(order.router, prefix="/order", tags=["orders"])
 
 @app.get("/")
 async def root():

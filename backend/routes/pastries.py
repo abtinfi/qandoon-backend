@@ -55,10 +55,9 @@ async def create_pastry(
     stock: int = Form(...),
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    email, role = current_user
-    if role != "admin":
+    if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can create pastries"
@@ -113,10 +112,9 @@ async def update_pastry(
     stock: int = Form(None),
     image: UploadFile = File(None),
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    email, role = current_user
-    if role != "admin":
+    if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can update pastries"
@@ -157,10 +155,9 @@ async def update_pastry(
 async def delete_pastry(
     pastry_id: int,
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    email, role = current_user
-    if role != "admin":
+    if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can delete pastries"
