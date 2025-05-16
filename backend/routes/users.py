@@ -26,9 +26,9 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db), redis_c
     new_user = create_user(db, user_data)
 
     redis_key = f"otp:{new_user.email}"
-    existing_otp_data = redis_client.hgetall(redis_key)
+    existing_otp_data = await redis_client.hgetall(redis_key)
     if existing_otp_data: # Check if an OTP already exists for this email
-        ttl = redis_client.ttl(redis_key)
+        ttl = await redis_client.ttl(redis_key)
         if ttl > 0:
             # If OTP exists and has not expired, prevent new OTP generation
             raise HTTPException(
@@ -46,8 +46,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db), redis_c
         "purpose": OTPPurpose.REGISTRATION.value,
         "created_at": current_time.isoformat(),
     }
-    redis_client.hset(redis_key, mapping=otp_data)
-    redis_client.expire(redis_key, expires_in_seconds)
+    await redis_client.hset(redis_key, mapping=otp_data)
+    await redis_client.expire(redis_key, expires_in_seconds)
     
     await email_service.send_otp_email(user_data.email, otp_code, 3)
     return new_user
@@ -78,10 +78,10 @@ async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), re
     
     # Check if an active OTP already exists
     redis_key =f"otp:{user.email}"
-    existing_otp_data = redis_client.hgetall(redis_key)
+    existing_otp_data = await redis_client.hgetall(redis_key)
 
     if existing_otp_data:
-        ttl = redis_client.ttl(redis_key)
+        ttl = await redis_client.ttl(redis_key)
         if ttl > 0: # If OTP exists and has not expired, prevent new OTP generation
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -101,8 +101,8 @@ async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), re
         "created_at": current_time.isoformat(),
     }
     
-    redis_client.hset(redis_key, mapping=otp_data)
-    redis_client.expire(redis_key, expires_in_seconds)
+    await redis_client.hset(redis_key, mapping=otp_data)
+    await redis_client.expire(redis_key, expires_in_seconds)
 
     await email_service.send_otp_email(otp_request.email, otp_code, 3)
     return OTPResponse(
@@ -113,8 +113,7 @@ async def request_otp(otp_request: OTPRequest, db: Session = Depends(get_db), re
 @router.post("/verify-email", response_model=TokenResponse)
 async def verify_email(verify_data: OTPVerifyRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     redis_key = f"otp:{verify_data.email}"
-    otp_data = redis_client.hgetall(redis_key)
-    otp_data = {k.decode(): v.decode() for k, v in otp_data.items()} # Decode OTP data from Redis
+    otp_data = await redis_client.hgetall(redis_key)
     if not otp_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -126,17 +125,17 @@ async def verify_email(verify_data: OTPVerifyRequest, db: Session = Depends(get_
             detail="OTP already verified"
         )
     if otp_data.get("code") != verify_data.code:
-        redis_client.hincrby(redis_key, "attempts", 1)
-        attempts = int(redis_client.hget(redis_key, "attempts") or 0)
+        await redis_client.hincrby(redis_key, "attempts", 1)
+        attempts = int(await redis_client.hget(redis_key, "attempts") or 0)
         if attempts >= 3: # Limit OTP verification attempts
-            ttl = redis_client.ttl(redis_key)
+            ttl = await redis_client.ttl(redis_key)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Too many attempts. Please request a new OTP after {ttl} seconds"
             )
     # If OTP code is correct
     if otp_data.get("code") == verify_data.code:
-        redis_client.hset(redis_key, "is_verified", "1")
+        await redis_client.hset(redis_key, "is_verified", "1")
         # Update user verification status
         user = db.query(User).filter(User.email == verify_data.email).first()
         if user:
@@ -182,8 +181,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 @router.post("/reset-password", response_model=OTPResponse)
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db), redis_client: Redis = Depends(get_redis)):
     redis_key = f"otp:{request.email}"
-    otp_data = redis_client.hgetall(redis_key)
-    otp_data = {k.decode(): v.decode() for k, v in otp_data.items()} # Decode OTP data from Redis
+    otp_data = await redis_client.hgetall(redis_key)
     if not otp_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -195,16 +193,16 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
             detail="OTP already verified"
         )
     if otp_data.get("code") != request.code:
-        redis_client.hincrby(redis_key, "attempts", 1)
-        attempts = int(redis_client.hget(redis_key, "attempts") or 0)
+        await redis_client.hincrby(redis_key, "attempts", 1)
+        attempts = int(await redis_client.hget(redis_key, "attempts") or 0)
         if attempts >= 3: # Limit OTP verification attempts
-            ttl = redis_client.ttl(redis_key)
+            ttl = await redis_client.ttl(redis_key)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Too many attempts. Please request a new OTP after {ttl} seconds"
             )
     if otp_data.get("code") == request.code:
-        redis_client.hset(redis_key, "is_verified", "1") # Mark OTP as verified for password reset
+        await redis_client.hset(redis_key, "is_verified", "1") # Mark OTP as verified for password reset
         # Update user password
         user = db.query(User).filter(User.email == request.email).first()
         if user:
