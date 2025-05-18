@@ -10,6 +10,6 @@ class Pastry(Base):
     description = Column(Text)
     image_url = Column(String)
     price = Column(Float)
-    stock = Column(Integer)
+    stock = Column(Float)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now()) 
