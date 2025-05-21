@@ -72,4 +72,4 @@ app.include_router(order.router, prefix="/order", tags=["orders"])
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the API for the Pastry shop!"}
+    return {"message": "Welcome to the API for the Qandoon App"}
