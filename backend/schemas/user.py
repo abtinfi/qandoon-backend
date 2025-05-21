@@ -7,7 +7,7 @@ class UserCreate(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    email: str
+    email: EmailStr
     name: str
     is_verified: bool
     is_admin: bool
