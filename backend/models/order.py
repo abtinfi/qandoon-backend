@@ -6,7 +6,7 @@ UTC = timezone.utc
 import enum
 
 from backend.database.config import Base
-
+#00
 class OrderStatus(enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
