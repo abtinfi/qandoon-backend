@@ -52,7 +52,7 @@ async def create_pastry(
     name: str = Form(...),
     description: str = Form(...),
     price: float = Form(...),
-    stock: int = Form(...),
+    stock: float = Form(...),
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
