@@ -87,7 +87,7 @@ async def get_pastries(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    pastries = db.query(Pastry).offset(skip).limit(limit).all()
+    pastries = db.query(Pastry).filter(Pastry.is_deleted == 0).offset(skip).limit(limit).all()
     return pastries
 
 @router.get("/{pastry_id}", response_model=PastryResponse)
@@ -101,6 +101,8 @@ async def get_pastry(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pastry not found"
         )
+    if pastry.is_deleted:
+        pastry.description = f"this pastry was deleted {pastry.description}"
     return pastry
 
 @router.put("/{pastry_id}", response_model=PastryResponse)
@@ -162,18 +164,12 @@ async def delete_pastry(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can delete pastries"
         )
-    
     db_pastry = db.query(Pastry).filter(Pastry.id == pastry_id).first()
     if not db_pastry:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pastry not found"
         )
-    
-    # Delete image file if exists
-    if db_pastry.image_url and os.path.exists(db_pastry.image_url):
-        os.remove(db_pastry.image_url)
-    
-    db.delete(db_pastry)
+    db_pastry.is_deleted = 1
     db.commit()
     return status.HTTP_200_OK
