@@ -10,6 +10,6 @@ class Pastry(Base):
     description = Column(Text)
     image_url = Column(String)
     price = Column(Float)
-    stock = Column(Float)
+    stock = Column(Float) #Changed from integer to float because it is based on kilograms
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now()) 
