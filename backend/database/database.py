@@ -52,3 +52,6 @@ def update_user(db: Session, user_id: int, update_data: dict):
     return user
 
 
+# end of the line
+
+
