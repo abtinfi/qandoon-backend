@@ -14,7 +14,7 @@ def create_user(db: Session, user_data: UserCreate):
     
     hashed_pw = hash_password(user_data.password)
     new_user = User(
-        email=user_data.email,
+        email=user_data.email.lower(),
         name=user_data.name,
         password=hashed_pw,
         is_verified=False
